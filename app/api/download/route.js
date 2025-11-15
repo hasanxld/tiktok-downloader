@@ -48,29 +48,28 @@ export async function POST(request) {
       )
     }
 
-    // ✅ Use multiple APIs to get no watermark video
-    console.log('Processing TikTok URL:', url)
+    console.log('Processing TikTok URL for NO WATERMARK:', url)
     
+    // ✅ Use ONLY no watermark APIs
     let videoData = null
-    let lastError = null
-
-    // Try multiple APIs in sequence
+    
+    // Try multiple no watermark APIs in sequence
     const apiAttempts = [
-      tryTikWMAPI,
-      tryTiklydownAPI,
-      trySSSTikAPI
+      tryTiklydownNoWatermark,
+      tryTikWMNoWatermark,
+      trySSSTikNoWatermark
     ]
 
     for (const apiAttempt of apiAttempts) {
       try {
         videoData = await apiAttempt(url)
         if (videoData && videoData.video.url_no_watermark) {
-          console.log('Success with API:', apiAttempt.name)
+          console.log('✅ SUCCESS with NO WATERMARK API:', apiAttempt.name)
           break
         }
       } catch (error) {
-        lastError = error.message
-        console.log(`API ${apiAttempt.name} failed:`, error.message)
+        console.log(`❌ API ${apiAttempt.name} failed:`, error.message)
+        // Continue to next API
       }
     }
 
@@ -78,10 +77,10 @@ export async function POST(request) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'DOWNLOAD_FAILED', 
-          message: lastError || 'Failed to fetch video without watermark' 
+          error: 'NO_WATERMARK_NOT_AVAILABLE', 
+          message: 'No watermark version not available for this video' 
         },
-        { status: 500 }
+        { status: 404 }
       )
     }
 
@@ -104,40 +103,19 @@ export async function POST(request) {
   }
 }
 
-// ✅ API 1: tikwm.com (Most reliable for no watermark)
-async function tryTikWMAPI(url) {
-  const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`
-  
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Accept': 'application/json',
-      'Referer': 'https://www.tiktok.com/'
-    }
-  })
-
-  if (!response.ok) throw new Error(`TikWM API returned ${response.status}`)
-
-  const data = await response.json()
-  
-  if (data.code === 0 && data.data) {
-    return processTikWMData(data.data)
-  }
-  
-  throw new Error(data.msg || 'TikWM API failed')
-}
-
-// ✅ API 2: tiklydown (Alternative for no watermark)
-async function tryTiklydownAPI(url) {
+// ✅ API 1: tiklydown (Best for no watermark)
+async function tryTiklydownNoWatermark(url) {
   const apiUrl = `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`
+  
+  console.log('Trying Tiklydown API...')
   
   const response = await fetch(apiUrl, {
     method: 'GET',
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Accept': 'application/json'
-    }
+    },
+    timeout: 15000
   })
 
   if (!response.ok) throw new Error(`Tiklydown API returned ${response.status}`)
@@ -145,31 +123,120 @@ async function tryTiklydownAPI(url) {
   const data = await response.json()
   
   if (data.videos && data.videos.length > 0) {
-    return processTiklydownData(data)
+    // Use the first video (usually no watermark)
+    const videoUrl = data.videos[0]
+    
+    return {
+      id: data.id || generateId(),
+      title: data.title || 'TikTok Video',
+      author: {
+        username: data.author?.uniqueId || 'unknown',
+        nickname: data.author?.nickname || 'TikTok User',
+        avatar: data.author?.avatar || '',
+      },
+      video: {
+        url: videoUrl, // Preview with no watermark
+        url_no_watermark: videoUrl, // Download with no watermark
+        cover: data.covers?.[0] || '',
+        duration: data.duration || 0,
+      },
+      music: {
+        title: data.music?.title || 'Original Sound',
+        author: data.music?.author || 'Unknown Artist',
+      },
+      stats: {
+        likes: data.stats?.diggCount || 0,
+        comments: data.stats?.commentCount || 0,
+        shares: data.stats?.shareCount || 0,
+        views: data.stats?.playCount || 0,
+      },
+    }
   }
   
-  throw new Error('Tiklydown API failed')
+  throw new Error('No video found in response')
 }
 
-// ✅ API 3: ssstik.io (Good for no watermark)
-async function trySSSTikAPI(url) {
+// ✅ API 2: tikwm.com no watermark only
+async function tryTikWMNoWatermark(url) {
+  const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`
+  
+  console.log('Trying TikWM API for no watermark...')
+  
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Accept': 'application/json',
+      'Referer': 'https://www.tiktok.com/'
+    },
+    timeout: 15000
+  })
+
+  if (!response.ok) throw new Error(`TikWM API returned ${response.status}`)
+
+  const data = await response.json()
+  
+  if (data.code === 0 && data.data) {
+    const videoData = data.data
+    
+    // ✅ FORCE NO WATERMARK - Use wmplay if available, otherwise don't return
+    if (!videoData.wmplay) {
+      throw new Error('No watermark version not available')
+    }
+    
+    const noWatermarkUrl = ensureAbsoluteUrl(videoData.wmplay)
+    
+    return {
+      id: videoData.id || generateId(),
+      title: videoData.title || 'TikTok Video',
+      author: {
+        username: videoData.author?.unique_id || 'unknown',
+        nickname: videoData.author?.nickname || 'TikTok User',
+        avatar: videoData.author?.avatar ? ensureAbsoluteUrl(videoData.author.avatar) : '',
+      },
+      video: {
+        url: noWatermarkUrl, // Preview with no watermark
+        url_no_watermark: noWatermarkUrl, // Download with no watermark
+        cover: videoData.cover ? ensureAbsoluteUrl(videoData.cover) : '',
+        duration: videoData.duration || 0,
+      },
+      music: {
+        title: videoData.music_info?.title || 'Original Sound',
+        author: videoData.music_info?.author || 'Unknown Artist',
+      },
+      stats: {
+        likes: videoData.digg_count || 0,
+        comments: videoData.comment_count || 0,
+        shares: videoData.share_count || 0,
+        views: videoData.play_count || 0,
+      },
+    }
+  }
+  
+  throw new Error(data.msg || 'TikWM API failed')
+}
+
+// ✅ API 3: ssstik.io no watermark
+async function trySSSTikNoWatermark(url) {
   const apiUrl = `https://ssstik.io/abc?url=${encodeURIComponent(url)}`
   
-  // This API returns HTML, we need to parse it
+  console.log('Trying SSSTik API...')
+  
   const response = await fetch(apiUrl, {
     method: 'GET',
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
+    },
+    timeout: 15000
   })
 
   if (!response.ok) throw new Error(`SSSTik API returned ${response.status}`)
 
   const html = await response.text()
   
-  // Extract video URL from HTML (simplified)
+  // Extract no watermark video URL from HTML
   const videoUrlMatch = html.match(/https:\/\/[^"]*\.mp4[^"]*/)
-  if (videoUrlMatch) {
+  if (videoUrlMatch && !videoUrlMatch[0].includes('watermark')) {
     return {
       id: generateId(),
       title: 'TikTok Video',
@@ -197,72 +264,7 @@ async function trySSSTikAPI(url) {
     }
   }
   
-  throw new Error('SSSTik API failed to extract video')
-}
-
-// ✅ Process tikwm.com data
-function processTikWMData(data) {
-  // ALWAYS use no watermark URL for both preview and download
-  const noWatermarkUrl = data.wmplay ? ensureAbsoluteUrl(data.wmplay) : 
-                         data.play ? ensureAbsoluteUrl(data.play) : ''
-  
-  return {
-    id: data.id || generateId(),
-    title: data.title || 'TikTok Video',
-    author: {
-      username: data.author?.unique_id || 'unknown',
-      nickname: data.author?.nickname || 'Unknown User',
-      avatar: data.author?.avatar ? ensureAbsoluteUrl(data.author.avatar) : '',
-    },
-    video: {
-      url: noWatermarkUrl, // Use no watermark for preview
-      url_no_watermark: noWatermarkUrl, // Use no watermark for download
-      cover: data.cover ? ensureAbsoluteUrl(data.cover) : '',
-      duration: data.duration || 0,
-    },
-    music: {
-      title: data.music_info?.title || 'Original Sound',
-      author: data.music_info?.author || 'Unknown Artist',
-    },
-    stats: {
-      likes: data.digg_count || 0,
-      comments: data.comment_count || 0,
-      shares: data.share_count || 0,
-      views: data.play_count || 0,
-    },
-  }
-}
-
-// ✅ Process tiklydown data
-function processTiklydownData(data) {
-  // Use the first video URL (usually no watermark)
-  const videoUrl = data.videos[0] || ''
-  
-  return {
-    id: data.id || generateId(),
-    title: data.title || 'TikTok Video',
-    author: {
-      username: data.author?.uniqueId || 'unknown',
-      nickname: data.author?.nickname || 'Unknown User',
-      avatar: data.author?.avatar || '',
-    },
-    video: {
-      url: videoUrl,
-      url_no_watermark: videoUrl,
-      cover: data.covers?.[0] || '',
-      duration: data.duration || 0,
-    },
-    music: {
-      title: data.music?.title || 'Original Sound',
-      author: data.music?.author || 'Unknown',
-    },
-    stats: {
-      likes: data.stats?.diggCount || 0,
-      comments: data.stats?.commentCount || 0,
-      shares: data.stats?.shareCount || 0,
-      views: data.stats?.playCount || 0,
-    },
-  }
+  throw new Error('No watermark video not found')
 }
 
 // ✅ Ensure URLs are absolute
@@ -277,4 +279,4 @@ function ensureAbsoluteUrl(url) {
 // ✅ Generate unique ID
 function generateId() {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9)
-          }
+    }
