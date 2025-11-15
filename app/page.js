@@ -11,7 +11,7 @@ import {
   CheckCircle, 
   XCircle, 
   X,
-  Home,
+  Home as HomeIcon,
   Download as DownloadIcon,
   Star,
   Settings,
@@ -85,7 +85,7 @@ function Sidebar() {
   const [activeItem, setActiveItem] = useState('DASHBOARD')
 
   const menuItems = [
-    { icon: <Home className="w-5 h-5" />, label: 'DASHBOARD' },
+    { icon: <HomeIcon className="w-5 h-5" />, label: 'DASHBOARD' },
     { icon: <DownloadIcon className="w-5 h-5" />, label: 'DOWNLOADS' },
     { icon: <Star className="w-5 h-5" />, label: 'FAVORITES' },
     { icon: <Settings className="w-5 h-5" />, label: 'SETTINGS' },
@@ -522,7 +522,7 @@ function Footer() {
 }
 
 // Main Page Component
-export default function Home() {
+export default function TikTokDownloader() {
   const [toasts, setToasts] = useState([])
 
   const addToast = (toast) => {
@@ -564,4 +564,4 @@ export default function Home() {
       </div>
     </div>
   )
-    }
+          }
