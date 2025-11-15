@@ -284,6 +284,7 @@ function ToolSection({ addToast }) {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
+  const [downloading, setDownloading] = useState(false)
 
   const handleDownload = async () => {
     if (!url.trim()) {
@@ -315,7 +316,7 @@ function ToolSection({ addToast }) {
         addToast({
           type: 'success',
           title: 'SUCCESS',
-          message: 'VIDEO DATA FETCHED SUCCESSFULLY',
+          message: 'NO WATERMARK VIDEO READY!',
           duration: 3000
         })
       } else {
@@ -348,22 +349,65 @@ function ToolSection({ addToast }) {
     }
   }
 
-  const handleDirectDownload = () => {
-    if (result?.video?.url_no_watermark) {
-      const link = document.createElement('a')
-      link.href = result.video.url_no_watermark
-      link.download = `tiktok-video-${result.id || Date.now()}.mp4`
-      link.target = '_blank'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      
+  const handleProxyDownload = async () => {
+    if (!result?.video?.url_no_watermark) {
       addToast({
-        type: 'success',
-        title: 'DOWNLOAD STARTED',
-        message: 'VIDEO DOWNLOAD INITIATED',
+        type: 'error',
+        title: 'ERROR',
+        message: 'NO VIDEO URL AVAILABLE',
         duration: 3000
       })
+      return
+    }
+
+    setDownloading(true)
+    
+    try {
+      const filename = `tiktok-${result.id || Date.now()}-nowatermark.mp4`
+      const proxyUrl = `/api/download/proxy?url=${encodeURIComponent(result.video.url_no_watermark)}&filename=${encodeURIComponent(filename)}`
+      
+      console.log('Starting proxy download:', proxyUrl)
+      
+      // Create hidden link for download
+      const link = document.createElement('a')
+      link.href = proxyUrl
+      link.download = filename
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      
+      // Show downloading toast
+      addToast({
+        type: 'info',
+        title: 'DOWNLOAD STARTING',
+        message: 'PREPARING YOUR NO WATERMARK VIDEO...',
+        duration: 2000
+      })
+      
+      // Wait a bit then trigger download
+      setTimeout(() => {
+        link.click()
+        document.body.removeChild(link)
+        
+        // Show success toast
+        addToast({
+          type: 'success',
+          title: 'DOWNLOAD STARTED',
+          message: 'NO WATERMARK VIDEO DOWNLOADING...',
+          duration: 3000
+        })
+        
+        setDownloading(false)
+      }, 1000)
+      
+    } catch (error) {
+      console.error('Download error:', error)
+      addToast({
+        type: 'error',
+        title: 'DOWNLOAD FAILED',
+        message: 'PLEASE TRY AGAIN',
+        duration: 5000
+      })
+      setDownloading(false)
     }
   }
 
@@ -378,9 +422,9 @@ function ToolSection({ addToast }) {
     <section id="tool" className="mb-16">
       <div className="text-center mb-8">
         <h2 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-4">
-          TIKTOK VIDEO DOWNLOADER
+          TIKTOK DOWNLOADER
         </h2>
-        <p className="text-gray-600 text-base lg:text-lg">DOWNLOAD HIGH-QUALITY TIKTOK VIDEOS WITHOUT WATERMARK</p>
+        <p className="text-gray-600 text-base lg:text-lg">DOWNLOAD TIKTOK VIDEOS WITHOUT WATERMARK - PREVIEW & DOWNLOAD</p>
       </div>
 
       <div className="max-w-4xl mx-auto bg-white border border-gray-200 p-4 lg:p-8">
@@ -406,7 +450,7 @@ function ToolSection({ addToast }) {
             ) : (
               <>
                 <i className="ri-download-cloud-2-line text-white text-lg lg:text-xl"></i>
-                <span className="text-sm lg:text-base">DOWNLOAD</span>
+                <span className="text-sm lg:text-base">GET VIDEO</span>
               </>
             )}
           </button>
@@ -416,7 +460,7 @@ function ToolSection({ addToast }) {
           <div className="text-center py-8">
             <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-blue-500 p-3 lg:p-4 text-white">
               <i className="ri-loader-4-line animate-spin text-white text-lg lg:text-xl"></i>
-              <span className="font-bold text-sm lg:text-base">FETCHING VIDEO DATA...</span>
+              <span className="font-bold text-sm lg:text-base">FETCHING NO WATERMARK VIDEO...</span>
             </div>
           </div>
         )}
@@ -428,22 +472,40 @@ function ToolSection({ addToast }) {
               <div>
                 <div className="flex items-center space-x-2 mb-4">
                   <i className="ri-video-line text-purple-600 text-lg lg:text-xl"></i>
-                  <h3 className="font-bold text-base lg:text-lg">VIDEO PREVIEW</h3>
+                  <h3 className="font-bold text-base lg:text-lg">NO WATERMARK PREVIEW</h3>
+                  <span className="bg-gradient-to-r from-green-500 to-blue-500 text-white text-xs px-2 py-1 font-bold">
+                    NO WATERMARK
+                  </span>
                 </div>
                 
                 <VideoPlayer 
-                  src={result.video.url_no_watermark || result.video.url} 
+                  src={result.video.url_no_watermark} 
                   title={result.title}
                 />
                 
-                <button
-                  onClick={handleDirectDownload}
-                  disabled={!result.video.url_no_watermark && !result.video.url}
-                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 font-bold mt-4 border-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm lg:text-base"
-                >
-                  <i className="ri-download-line text-white text-lg lg:text-xl"></i>
-                  <span>DOWNLOAD VIDEO</span>
-                </button>
+                <div className="mt-4 space-y-2">
+                  <button
+                    onClick={handleProxyDownload}
+                    disabled={downloading || !result.video.url_no_watermark}
+                    className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 font-bold border-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm lg:text-base"
+                  >
+                    {downloading ? (
+                      <>
+                        <i className="ri-loader-4-line animate-spin text-white text-lg lg:text-xl"></i>
+                        <span>PREPARING DOWNLOAD...</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="ri-download-line text-white text-lg lg:text-xl"></i>
+                        <span>DOWNLOAD NO WATERMARK VIDEO</span>
+                      </>
+                    )}
+                  </button>
+                  
+                  <p className="text-xs text-gray-500 text-center">
+                    ⚡ Super Fast Proxy Download • HD Quality • No Watermark
+                  </p>
+                </div>
               </div>
 
               {/* Video Details */}
@@ -544,7 +606,7 @@ function ToolSection({ addToast }) {
   )
 }
 
-// Features Section Component
+// Features Section Component with FIXED REMIXICONS
 function FeaturesSection() {
   const features = [
     {
@@ -566,6 +628,26 @@ function FeaturesSection() {
       icon: 'ri-smartphone-fill',
       title: "MOBILE FRIENDLY",
       description: "WORKS PERFECTLY ON ALL DEVICES AND SCREEN SIZES"
+    },
+    {
+      icon: 'ri-hd-fill',
+      title: "HD QUALITY",
+      description: "DOWNLOAD VIDEOS IN HIGH DEFINITION QUALITY"
+    },
+    {
+      icon: 'ri-download-cloud-fill',
+      title: "EASY DOWNLOAD",
+      description: "SIMPLE ONE-CLICK DOWNLOAD WITHOUT REGISTRATION"
+    },
+    {
+      icon: 'ri-global-fill',
+      title: "WORLDWIDE",
+      description: "WORKS WITH ALL TIKTOK REGIONS AND LANGUAGES"
+    },
+    {
+      icon: 'ri-time-fill',
+      title: "24/7 AVAILABLE",
+      description: "SERVICE AVAILABLE 24 HOURS WITHOUT DOWNTIME"
     }
   ]
 
@@ -580,14 +662,35 @@ function FeaturesSection() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {features.map((feature, index) => (
-          <div key={index} className="border border-gray-200 p-4 lg:p-6 text-center group hover:border-purple-500 transition-all">
-            <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-12 h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-3 lg:mb-4 text-white group-hover:scale-110 transition-transform">
+          <div key={index} className="border border-gray-200 p-4 lg:p-6 text-center group hover:border-purple-500 transition-all duration-300 hover:shadow-lg">
+            <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-12 h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-3 lg:mb-4 text-white group-hover:scale-110 transition-transform duration-300">
               <i className={`${feature.icon} text-xl lg:text-2xl`}></i>
             </div>
-            <h3 className="font-bold text-base lg:text-lg mb-2">{feature.title}</h3>
+            <h3 className="font-bold text-base lg:text-lg mb-2 text-gray-800">{feature.title}</h3>
             <p className="text-gray-600 text-xs lg:text-sm leading-relaxed">{feature.description}</p>
           </div>
         ))}
+      </div>
+
+      {/* Additional Feature Highlights */}
+      <div className="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="border border-gray-200 p-6 text-center bg-gradient-to-br from-purple-50 to-blue-50">
+          <i className="ri-download-line text-4xl text-purple-600 mb-4"></i>
+          <h3 className="font-bold text-lg mb-2">UNLIMITED DOWNLOADS</h3>
+          <p className="text-gray-600 text-sm">Download as many videos as you want without any limits</p>
+        </div>
+        
+        <div className="border border-gray-200 p-6 text-center bg-gradient-to-br from-green-50 to-blue-50">
+          <i className="ri-shield-check-line text-4xl text-green-600 mb-4"></i>
+          <h3 className="font-bold text-lg mb-2">100% SAFE</h3>
+          <p className="text-gray-600 text-sm">Your privacy is protected, no personal data required</p>
+        </div>
+        
+        <div className="border border-gray-200 p-6 text-center bg-gradient-to-br from-orange-50 to-red-50">
+          <i className="ri-time-line text-4xl text-orange-600 mb-4"></i>
+          <h3 className="font-bold text-lg mb-2">INSTANT PROCESSING</h3>
+          <p className="text-gray-600 text-sm">Get your videos ready in seconds with fast processing</p>
+        </div>
       </div>
     </section>
   )
@@ -599,22 +702,26 @@ function HowItWorks() {
     {
       step: "01",
       title: "COPY TIKTOK URL",
-      description: "COPY THE TIKTOK VIDEO URL FROM THE TIKTOK APP OR WEBSITE"
+      description: "COPY THE TIKTOK VIDEO URL FROM THE TIKTOK APP OR WEBSITE",
+      icon: "ri-links-line"
     },
     {
       step: "02",
       title: "PASTE URL",
-      description: "PASTE THE COPIED URL INTO THE INPUT FIELD ABOVE"
+      description: "PASTE THE COPIED URL INTO THE INPUT FIELD ABOVE",
+      icon: "ri-clipboard-line"
     },
     {
       step: "03",
       title: "CLICK DOWNLOAD",
-      description: "CLICK THE DOWNLOAD BUTTON TO PROCESS THE VIDEO"
+      description: "CLICK THE DOWNLOAD BUTTON TO PROCESS THE VIDEO",
+      icon: "ri-download-line"
     },
     {
       step: "04",
       title: "SAVE VIDEO",
-      description: "DOWNLOAD YOUR TIKTOK VIDEO WITHOUT WATERMARK"
+      description: "DOWNLOAD YOUR TIKTOK VIDEO WITHOUT WATERMARK",
+      icon: "ri-checkbox-circle-line"
     }
   ]
 
@@ -629,20 +736,38 @@ function HowItWorks() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {steps.map((item, index) => (
-          <div key={index} className="relative border border-gray-200 p-4 lg:p-6 text-center">
-            <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-10 h-10 lg:w-12 lg:h-12 flex items-center justify-center text-white font-bold text-base lg:text-lg mb-3 lg:mb-4 mx-auto">
+          <div key={index} className="relative border border-gray-200 p-4 lg:p-6 text-center group hover:border-purple-500 transition-all duration-300">
+            <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-10 h-10 lg:w-12 lg:h-12 flex items-center justify-center text-white font-bold text-base lg:text-lg mb-3 lg:mb-4 mx-auto group-hover:scale-110 transition-transform">
               {item.step}
             </div>
-            <h3 className="font-bold text-base lg:text-lg mb-2">{item.title}</h3>
+            
+            <div className="bg-gradient-to-r from-purple-100 to-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <i className={`${item.icon} text-purple-600 text-xl`}></i>
+            </div>
+            
+            <h3 className="font-bold text-base lg:text-lg mb-2 text-gray-800">{item.title}</h3>
             <p className="text-gray-600 text-xs lg:text-sm leading-relaxed">{item.description}</p>
             
             {index < steps.length - 1 && (
               <div className="hidden lg:block absolute -right-3 top-1/2 transform -translate-y-1/2">
-                <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-6 h-1"></div>
+                <i className="ri-arrow-right-s-line text-2xl text-purple-500"></i>
               </div>
             )}
           </div>
         ))}
+      </div>
+
+      {/* Call to Action */}
+      <div className="text-center mt-12">
+        <div className="bg-gradient-to-r from-purple-500 to-blue-500 p-8 text-white max-w-2xl mx-auto">
+          <i className="ri-download-cloud-2-fill text-4xl mb-4"></i>
+          <h3 className="text-2xl font-bold mb-2">READY TO DOWNLOAD?</h3>
+          <p className="mb-4 opacity-90">Start downloading TikTok videos without watermark now!</p>
+          <a href="#tool" className="bg-white text-purple-600 px-6 py-3 font-bold text-lg border-0 inline-block hover:bg-gray-100 transition-colors">
+            <i className="ri-download-line mr-2"></i>
+            START DOWNLOADING
+          </a>
+        </div>
       </div>
     </section>
   )
@@ -655,45 +780,80 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-4 lg:px-6 py-8 lg:py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
           <div>
-            <h3 className="text-lg lg:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-3 lg:mb-4">
-              TIKTOK DOWNLOADER
-            </h3>
+            <div className="flex items-center space-x-2 mb-3 lg:mb-4">
+              <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-8 h-8 flex items-center justify-center">
+                <i className="ri-video-line text-white text-lg"></i>
+              </div>
+              <h3 className="text-lg lg:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+                TIKTOK DOWNLOADER
+              </h3>
+            </div>
             <p className="text-gray-400 text-xs lg:text-sm leading-relaxed">
-              PREMIUM TIKTOK VIDEO DOWNLOADER WITHOUT WATERMARK. FAST, SECURE, AND FREE.
+              THE ULTIMATE TIKTOK VIDEO DOWNLOADER WITHOUT WATERMARK. FAST, SECURE, AND COMPLETELY FREE.
             </p>
+            <div className="flex space-x-3 mt-4">
+              <a href="#" className="text-gray-400 hover:text-white transition">
+                <i className="ri-facebook-fill text-xl"></i>
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition">
+                <i className="ri-twitter-fill text-xl"></i>
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition">
+                <i className="ri-instagram-line text-xl"></i>
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition">
+                <i className="ri-github-fill text-xl"></i>
+              </a>
+            </div>
           </div>
           
           <div>
-            <h4 className="font-bold mb-3 lg:mb-4 text-sm lg:text-base">QUICK LINKS</h4>
+            <h4 className="font-bold mb-3 lg:mb-4 text-sm lg:text-base flex items-center">
+              <i className="ri-links-line mr-2"></i>
+              QUICK LINKS
+            </h4>
             <ul className="space-y-2 text-xs lg:text-sm text-gray-400">
-              <li><a href="#tool" className="hover:text-white transition">DOWNLOAD TOOL</a></li>
-              <li><a href="#features" className="hover:text-white transition">FEATURES</a></li>
-              <li><a href="#how-it-works" className="hover:text-white transition">HOW IT WORKS</a></li>
+              <li><a href="#tool" className="hover:text-white transition flex items-center"><i className="ri-download-line mr-2"></i>DOWNLOAD TOOL</a></li>
+              <li><a href="#features" className="hover:text-white transition flex items-center"><i className="ri-star-line mr-2"></i>FEATURES</a></li>
+              <li><a href="#how-it-works" className="hover:text-white transition flex items-center"><i className="ri-information-line mr-2"></i>HOW IT WORKS</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-question-line mr-2"></i>FAQ</a></li>
             </ul>
           </div>
           
           <div>
-            <h4 className="font-bold mb-3 lg:mb-4 text-sm lg:text-base">LEGAL</h4>
+            <h4 className="font-bold mb-3 lg:mb-4 text-sm lg:text-base flex items-center">
+              <i className="ri-scale-line mr-2"></i>
+              LEGAL
+            </h4>
             <ul className="space-y-2 text-xs lg:text-sm text-gray-400">
-              <li><a href="#" className="hover:text-white transition">PRIVACY POLICY</a></li>
-              <li><a href="#" className="hover:text-white transition">TERMS OF SERVICE</a></li>
-              <li><a href="#" className="hover:text-white transition">DMCA</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-shield-keyhole-line mr-2"></i>PRIVACY POLICY</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-file-text-line mr-2"></i>TERMS OF SERVICE</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-alert-line mr-2"></i>DMCA</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-cookie-line mr-2"></i>COOKIE POLICY</a></li>
             </ul>
           </div>
           
           <div>
-            <h4 className="font-bold mb-3 lg:mb-4 text-sm lg:text-base">SUPPORT</h4>
+            <h4 className="font-bold mb-3 lg:mb-4 text-sm lg:text-base flex items-center">
+              <i className="ri-customer-service-2-line mr-2"></i>
+              SUPPORT
+            </h4>
             <ul className="space-y-2 text-xs lg:text-sm text-gray-400">
-              <li><a href="#" className="hover:text-white transition">CONTACT US</a></li>
-              <li><a href="#" className="hover:text-white transition">HELP CENTER</a></li>
-              <li><a href="#" className="hover:text-white transition">STATUS</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-contacts-line mr-2"></i>CONTACT US</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-question-answer-line mr-2"></i>HELP CENTER</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-bug-line mr-2"></i>REPORT ISSUE</a></li>
+              <li><a href="#" className="hover:text-white transition flex items-center"><i className="ri-heart-line mr-2"></i>DONATE</a></li>
             </ul>
           </div>
         </div>
         
         <div className="border-t border-gray-800 mt-6 lg:mt-8 pt-6 lg:pt-8 text-center">
           <p className="text-gray-400 text-xs lg:text-sm">
-            © 2024 TIKTOK DOWNLOADER. ALL RIGHTS RESERVED. | PREMIUM VIDEO DOWNLOADING TOOL
+            <i className="ri-copyright-line mr-1"></i>
+            2024 TIKTOK DOWNLOADER. ALL RIGHTS RESERVED. | PREMIUM VIDEO DOWNLOADING TOOL
+          </p>
+          <p className="text-gray-500 text-xs mt-2">
+            Made with <i className="ri-heart-fill text-red-500 mx-1"></i> for TikTok lovers worldwide
           </p>
         </div>
       </div>
