@@ -49,11 +49,11 @@ export async function POST(request) {
       )
     }
 
-    // ✅ Multiple API endpoints try korbe
+    // ✅ Use multiple reliable APIs
     const apiEndpoints = [
       `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`,
-      `https://tikwm.com/api/?url=${encodeURIComponent(url)}`,
-      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`
+      `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`,
+      `https://tikdown.org/api?url=${encodeURIComponent(url)}`
     ]
 
     let videoData = null
@@ -69,8 +69,7 @@ export async function POST(request) {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': 'application/json',
             'Referer': 'https://www.tiktok.com/'
-          },
-          timeout: 10000
+          }
         })
 
         if (response.ok) {
@@ -106,9 +105,23 @@ export async function POST(request) {
     }
 
     // ✅ Process successful response
+    const processedData = processVideoData(videoData)
+    
+    // ✅ Validate that we have at least one video URL
+    if (!processedData.video.url && !processedData.video.url_no_watermark) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'NO_VIDEO_URL', 
+          message: 'Could not extract video URL. The video might be private or unavailable.' 
+        },
+        { status: 404 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
-      data: processVideoData(videoData)
+      data: processedData
     })
 
   } catch (error) {
@@ -127,60 +140,92 @@ export async function POST(request) {
 
 // ✅ Helper function to process different API response formats
 function processVideoData(apiData) {
-  // Format 1: tikwm.com format
+  // Format 1: tikwm.com format (Most reliable)
   if (apiData.code === 0 && apiData.data) {
+    const data = apiData.data
     return {
-      id: apiData.data.id || Date.now().toString(),
-      title: apiData.data.title || 'TikTok Video',
+      id: data.id || Date.now().toString(),
+      title: data.title || 'TikTok Video',
       author: {
-        username: apiData.data.author?.unique_id || 'unknown',
-        nickname: apiData.data.author?.nickname || 'Unknown User',
-        avatar: apiData.data.author?.avatar || '',
+        username: data.author?.unique_id || 'unknown',
+        nickname: data.author?.nickname || 'Unknown User',
+        avatar: data.author?.avatar || '',
       },
       video: {
-        url: `https://www.tikwm.com${apiData.data.play}`,
-        url_no_watermark: `https://www.tikwm.com${apiData.data.wmplay || apiData.data.play}`,
-        cover: `https://www.tikwm.com${apiData.data.cover}`,
-        duration: apiData.data.duration || 0,
+        url: data.play ? `https://www.tikwm.com${data.play}` : '',
+        url_no_watermark: data.wmplay ? `https://www.tikwm.com${data.wmplay}` : (data.play ? `https://www.tikwm.com${data.play}` : ''),
+        cover: data.cover ? `https://www.tikwm.com${data.cover}` : '',
+        duration: data.duration || 0,
       },
       music: {
-        title: apiData.data.music_info?.title || 'Original Sound',
-        author: apiData.data.music_info?.author || 'Unknown',
+        title: data.music_info?.title || 'Original Sound',
+        author: data.music_info?.author || 'Unknown',
       },
       stats: {
-        likes: apiData.data.digg_count || 0,
-        comments: apiData.data.comment_count || 0,
-        shares: apiData.data.share_count || 0,
-        views: apiData.data.play_count || 0,
+        likes: data.digg_count || 0,
+        comments: data.comment_count || 0,
+        shares: data.share_count || 0,
+        views: data.play_count || 0,
       },
     }
   }
 
   // Format 2: tiklydown format
-  if (apiData.success && apiData.data) {
+  if (apiData.videos) {
+    const videos = apiData.videos
     return {
-      id: apiData.data.id || Date.now().toString(),
-      title: apiData.data.title || 'TikTok Video',
+      id: apiData.id || Date.now().toString(),
+      title: apiData.title || 'TikTok Video',
       author: {
-        username: apiData.data.author?.id || 'unknown',
-        nickname: apiData.data.author?.nickname || 'Unknown User',
-        avatar: apiData.data.author?.avatar || '',
+        username: apiData.author?.uniqueId || 'unknown',
+        nickname: apiData.author?.nickname || 'Unknown User',
+        avatar: apiData.author?.avatar || '',
       },
       video: {
-        url: apiData.data.play || '',
-        url_no_watermark: apiData.data.wmplay || apiData.data.play || '',
-        cover: apiData.data.cover || '',
-        duration: apiData.data.duration || 0,
+        url: videos[0] || '',
+        url_no_watermark: videos[1] || videos[0] || '',
+        cover: apiData.covers?.[0] || '',
+        duration: apiData.duration || 0,
       },
       music: {
-        title: apiData.data.music?.title || 'Original Sound',
-        author: apiData.data.music?.author || 'Unknown',
+        title: apiData.music?.title || 'Original Sound',
+        author: apiData.music?.author || 'Unknown',
       },
       stats: {
-        likes: apiData.data.likes || 0,
-        comments: apiData.data.comments || 0,
-        shares: apiData.data.shares || 0,
-        views: apiData.data.views || 0,
+        likes: apiData.stats?.diggCount || 0,
+        comments: apiData.stats?.commentCount || 0,
+        shares: apiData.stats?.shareCount || 0,
+        views: apiData.stats?.playCount || 0,
+      },
+    }
+  }
+
+  // Format 3: Generic format
+  if (apiData.data) {
+    const data = apiData.data
+    return {
+      id: data.id || Date.now().toString(),
+      title: data.title || data.desc || 'TikTok Video',
+      author: {
+        username: data.author?.id || data.author?.unique_id || 'unknown',
+        nickname: data.author?.nickname || data.author?.name || 'Unknown User',
+        avatar: data.author?.avatar || data.author?.avatar_url || '',
+      },
+      video: {
+        url: data.play || data.video_url || data.url || '',
+        url_no_watermark: data.wmplay || data.no_watermark || data.play || data.video_url || data.url || '',
+        cover: data.cover || data.thumbnail || '',
+        duration: data.duration || 0,
+      },
+      music: {
+        title: data.music?.title || data.music_info?.title || 'Original Sound',
+        author: data.music?.author || data.music_info?.author || 'Unknown',
+      },
+      stats: {
+        likes: data.digg_count || data.like_count || data.likes || 0,
+        comments: data.comment_count || data.comments || 0,
+        shares: data.share_count || data.shares || 0,
+        views: data.play_count || data.view_count || data.views || 0,
       },
     }
   }
