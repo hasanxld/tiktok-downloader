@@ -1,23 +1,19 @@
-/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css');
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  border-radius: 0 !important;
 }
 
 body {
   font-family: 'Space Grotesk', sans-serif;
-}
-
-/* Remove all border radius */
-* {
-  border-radius: 0 !important;
 }
 
 /* Custom scrollbar */
