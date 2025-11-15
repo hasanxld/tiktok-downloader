@@ -16,6 +16,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={spaceGrotesk.variable}>
+      <head>
+        <link 
+          href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" 
+          rel="stylesheet" 
+        />
+      </head>
       <body className="font-sans">
         {children}
       </body>
