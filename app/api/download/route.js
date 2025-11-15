@@ -1,11 +1,10 @@
 // app/api/download/route.js
 import { NextResponse } from 'next/server'
-import { TikTokScraper } from 'tiktok-scraper-without-watermark'
 
 const rateLimitMap = new Map()
 
 export async function POST(request) {
-  const clientIP = request.headers.get('x-forwarded-for') || 'unknown'
+  const clientIP = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
   const now = Date.now()
   const windowStart = now - 60000 // 1 minute window
 
@@ -46,58 +45,56 @@ export async function POST(request) {
       )
     }
 
-    const scraper = new TikTokScraper()
-    const videoData = await scraper.getVideo(url)
+    // Using a free TikTok API service as fallback
+    const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`
+    
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    })
+    
+    const data = await response.json()
 
-    if (!videoData || !videoData.video_url_no_watermark) {
+    if (data.code === 0) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: data.data.id,
+          title: data.data.title,
+          author: {
+            username: data.data.author.unique_id,
+            nickname: data.data.author.nickname,
+            avatar: data.data.author.avatar,
+          },
+          video: {
+            url: `https://www.tikwm.com${data.data.play}`,
+            url_no_watermark: `https://www.tikwm.com${data.data.wmplay}`,
+            cover: `https://www.tikwm.com${data.data.cover}`,
+            duration: data.data.duration,
+          },
+          music: {
+            title: data.data.music_info?.title || 'Original Sound',
+            author: data.data.music_info?.author || 'Unknown',
+          },
+          stats: {
+            likes: data.data.digg_count,
+            comments: data.data.comment_count,
+            shares: data.data.share_count,
+            views: data.data.play_count,
+          },
+        }
+      })
+    } else {
       return NextResponse.json(
-        { success: false, error: 'DOWNLOAD_FAILED', message: 'Failed to fetch video data' },
+        { success: false, error: 'DOWNLOAD_FAILED', message: data.msg || 'Failed to download video' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: videoData.id,
-        title: videoData.title || 'TikTok Video',
-        description: videoData.description,
-        author: {
-          username: videoData.author?.nickname || 'Unknown',
-          nickname: videoData.author?.nickname,
-          avatar: videoData.author?.avatar,
-        },
-        video: {
-          url: videoData.video_url,
-          url_no_watermark: videoData.video_url_no_watermark,
-          duration: videoData.duration,
-          cover: videoData.cover,
-        },
-        music: {
-          title: videoData.music?.title,
-          author: videoData.music?.author,
-          url: videoData.music?.url,
-        },
-        stats: {
-          likes: videoData.like_count,
-          comments: videoData.comment_count,
-          shares: videoData.share_count,
-          views: videoData.play_count,
-        },
-        created: videoData.create_time,
-      }
-    })
-
   } catch (error) {
     console.error('TikTok download error:', error)
     
-    if (error.message.includes('not found')) {
-      return NextResponse.json(
-        { success: false, error: 'VIDEO_NOT_FOUND', message: 'Video not found or private' },
-        { status: 404 }
-      )
-    }
-
     return NextResponse.json(
       { 
         success: false, 
