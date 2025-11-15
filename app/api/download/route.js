@@ -2,24 +2,6 @@ import { NextResponse } from 'next/server'
 
 const rateLimitMap = new Map()
 
-// Advanced headers that mimic real browser
-const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Accept-Encoding': 'gzip, deflate, br',
-  'Cache-Control': 'no-cache',
-  'Connection': 'keep-alive',
-  'Upgrade-Insecure-Requests': '1',
-  'Sec-Fetch-Dest': 'document',
-  'Sec-Fetch-Mode': 'navigate',
-  'Sec-Fetch-Site': 'none',
-  'Sec-Fetch-User': '?1',
-  'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-  'sec-ch-ua-mobile': '?0',
-  'sec-ch-ua-platform': '"Windows"'
-}
-
 export async function POST(request) {
   const clientIP = request.headers.get('x-forwarded-for') || 'unknown'
   const now = Date.now()
@@ -66,38 +48,37 @@ export async function POST(request) {
       )
     }
 
-    console.log('🚀 Processing TikTok URL:', url)
+    console.log('Processing TikTok URL for NO WATERMARK:', url)
     
-    // ✅ Try ALL methods with advanced bypass
+    // ✅ Use ONLY no watermark APIs
     let videoData = null
-    const methods = [
-      smartSnapTikProxy,
-      smartSSSTikProxy, 
-      smartTikMateProxy,
-      smartMusicalDownProxy,
-      directTikTokAPI
+    
+    // Try multiple no watermark APIs in sequence
+    const apiAttempts = [
+      tryTiklydownNoWatermark,
+      tryTikWMNoWatermark,
+      trySSSTikNoWatermark
     ]
 
-    for (const method of methods) {
+    for (const apiAttempt of apiAttempts) {
       try {
-        console.log(`🔄 Trying: ${method.name}`)
-        videoData = await method(url)
-        if (videoData && videoData.video?.url_no_watermark) {
-          console.log(`✅ SUCCESS with ${method.name}`)
+        videoData = await apiAttempt(url)
+        if (videoData && videoData.video.url_no_watermark) {
+          console.log('✅ SUCCESS with NO WATERMARK API:', apiAttempt.name)
           break
         }
       } catch (error) {
-        console.log(`❌ ${method.name} failed:`, error.message)
-        // Continue to next method
+        console.log(`❌ API ${apiAttempt.name} failed:`, error.message)
+        // Continue to next API
       }
     }
 
-    if (!videoData || !videoData.video?.url_no_watermark) {
+    if (!videoData || !videoData.video.url_no_watermark) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'ALL_METHODS_FAILED', 
-          message: 'All download methods failed. The video might be private or restricted.' 
+          error: 'NO_WATERMARK_NOT_AVAILABLE', 
+          message: 'No watermark version not available for this video' 
         },
         { status: 404 }
       )
@@ -109,456 +90,190 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('💥 Final error:', error)
+    console.error('TikTok download error:', error)
+    
     return NextResponse.json(
       { 
         success: false, 
         error: 'SERVER_ERROR', 
-        message: 'Service temporarily unavailable. Please try again in a few minutes.' 
+        message: 'Failed to download video. Please try again.' 
       },
       { status: 500 }
     )
   }
 }
 
-// 🔥 SMART PROXY 1: SnapTik with Advanced Bypass
-async function smartSnapTikProxy(tiktokUrl) {
-  console.log('🔍 Smart SnapTik Proxy...')
+// ✅ API 1: tiklydown (Best for no watermark)
+async function tryTiklydownNoWatermark(url) {
+  const apiUrl = `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`
   
-  const baseUrl = 'https://snaptik.app'
-  let cookies = ''
+  console.log('Trying Tiklydown API...')
   
-  try {
-    // Step 1: Get main page with proper browser simulation
-    const mainResponse = await fetch(baseUrl, {
-      method: 'GET',
-      headers: {
-        ...BROWSER_HEADERS,
-        'Referer': 'https://www.google.com/'
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json'
+    },
+    timeout: 15000
+  })
+
+  if (!response.ok) throw new Error(`Tiklydown API returned ${response.status}`)
+
+  const data = await response.json()
+  
+  if (data.videos && data.videos.length > 0) {
+    // Use the first video (usually no watermark)
+    const videoUrl = data.videos[0]
+    
+    return {
+      id: data.id || generateId(),
+      title: data.title || 'TikTok Video',
+      author: {
+        username: data.author?.uniqueId || 'unknown',
+        nickname: data.author?.nickname || 'TikTok User',
+        avatar: data.author?.avatar || '',
       },
-      redirect: 'follow'
-    })
-    
-    const mainHtml = await mainResponse.text()
-    cookies = mainResponse.headers.get('set-cookie') || ''
-    
-    // Extract token with multiple patterns
-    const tokenPatterns = [
-      /name="token"\s+value="([^"]*)"/,
-      /token["']?\s*[:=]\s*["']([^"']+)["']/,
-      /<input[^>]*name="token"[^>]*value="([^"]*)"/
-    ]
-    
-    let token = null
-    for (const pattern of tokenPatterns) {
-      const match = mainHtml.match(pattern)
-      if (match) {
-        token = match[1]
-        break
-      }
-    }
-    
-    console.log('📋 Extracted Token:', token)
-    
-    if (!token) {
-      // If no token found, try without it
-      token = 'default'
-    }
-
-    // Step 2: Submit the URL with proper form data
-    const formData = new URLSearchParams()
-    formData.append('url', tiktokUrl)
-    formData.append('token', token)
-    formData.append('submit', '')
-    formData.append('lang', 'en')
-
-    const submitResponse = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        ...BROWSER_HEADERS,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Origin': baseUrl,
-        'Referer': baseUrl + '/',
-        'Cookie': cookies,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+      video: {
+        url: videoUrl, // Preview with no watermark
+        url_no_watermark: videoUrl, // Download with no watermark
+        cover: data.covers?.[0] || '',
+        duration: data.duration || 0,
       },
-      body: formData.toString(),
-      redirect: 'manual' // Handle redirects manually
-    })
-
-    let resultHtml = ''
-    let resultCookies = cookies
-    
-    // Handle redirect
-    if (submitResponse.status === 302 || submitResponse.status === 301) {
-      const redirectUrl = submitResponse.headers.get('location')
-      resultCookies = submitResponse.headers.get('set-cookie') || resultCookies
-      
-      if (redirectUrl) {
-        const redirectResponse = await fetch(redirectUrl.startsWith('http') ? redirectUrl : baseUrl + redirectUrl, {
-          headers: {
-            ...BROWSER_HEADERS,
-            'Cookie': resultCookies,
-            'Referer': baseUrl + '/'
-          }
-        })
-        resultHtml = await redirectResponse.text()
-        resultCookies = redirectResponse.headers.get('set-cookie') || resultCookies
-      }
-    } else {
-      resultHtml = await submitResponse.text()
-      resultCookies = submitResponse.headers.get('set-cookie') || resultCookies
+      music: {
+        title: data.music?.title || 'Original Sound',
+        author: data.music?.author || 'Unknown Artist',
+      },
+      stats: {
+        likes: data.stats?.diggCount || 0,
+        comments: data.stats?.commentCount || 0,
+        shares: data.stats?.shareCount || 0,
+        views: data.stats?.playCount || 0,
+      },
     }
-
-    console.log('📄 Response length:', resultHtml.length)
-    
-    // Advanced video URL extraction with multiple patterns
-    const videoPatterns = [
-      /<a[^>]*href="(https?:\/\/[^"]*\.mp4[^"]*)"[^>]*download/i,
-      /<a[^>]*download[^>]*href="(https?:\/\/[^"]*\.mp4[^"]*)"/i,
-      /video-download[^>]*href="(https?:\/\/[^"]*\.mp4[^"]*)"/i,
-      /download-link[^>]*href="(https?:\/\/[^"]*\.mp4[^"]*)"/i,
-      /"url"\s*:\s*"([^"]*\.mp4[^"]*)"/i,
-      /<source[^>]*src="(https?:\/\/[^"]*\.mp4[^"]*)"/i
-    ]
-    
-    let videoUrl = null
-    for (const pattern of videoPatterns) {
-      const match = resultHtml.match(pattern)
-      if (match) {
-        videoUrl = match[1]
-        console.log('🎯 Found video URL:', videoUrl)
-        break
-      }
-    }
-
-    if (videoUrl) {
-      // Clean the URL
-      videoUrl = videoUrl.replace(/\\\//g, '/').replace(/&amp;/g, '&')
-      
-      return {
-        id: generateId(),
-        title: 'TikTok Video',
-        author: {
-          username: 'tiktokuser',
-          nickname: 'TikTok Creator',
-          avatar: '',
-        },
-        video: {
-          url: videoUrl,
-          url_no_watermark: videoUrl,
-          cover: '',
-          duration: 0,
-        },
-        music: {
-          title: 'Original Sound',
-          author: 'Unknown Artist',
-        },
-        stats: {
-          likes: 0,
-          comments: 0,
-          shares: 0,
-          views: 0,
-        },
-      }
-    }
-    
-    throw new Error('No video URL found in response')
-    
-  } catch (error) {
-    console.error('❌ SnapTik error:', error)
-    throw error
   }
+  
+  throw new Error('No video found in response')
 }
 
-// 🔥 SMART PROXY 2: SSSTik with Advanced Bypass
-async function smartSSSTikProxy(tiktokUrl) {
-  console.log('🔍 Smart SSSTik Proxy...')
+// ✅ API 2: tikwm.com no watermark only
+async function tryTikWMNoWatermark(url) {
+  const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`
   
-  const baseUrl = 'https://ssstik.io'
+  console.log('Trying TikWM API for no watermark...')
   
-  try {
-    // Get main page
-    const mainResponse = await fetch(baseUrl, {
-      headers: BROWSER_HEADERS
-    })
-    
-    const mainHtml = await mainResponse.text()
-    const cookies = mainResponse.headers.get('set-cookie') || ''
-    
-    // Extract token
-    const tokenMatch = mainHtml.match(/name="tt"\s+value="([^"]*)"/)
-    const token = tokenMatch ? tokenMatch[1] : '723b6a1a5f3d2e1c4a8b9c7d6e5f4a3b'
-    
-    console.log('📋 SSSTik Token:', token)
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Accept': 'application/json',
+      'Referer': 'https://www.tiktok.com/'
+    },
+    timeout: 15000
+  })
 
-    // Submit request
-    const formData = new URLSearchParams()
-    formData.append('id', tiktokUrl)
-    formData.append('locale', 'en')
-    formData.append('tt', token)
+  if (!response.ok) throw new Error(`TikWM API returned ${response.status}`)
 
-    const submitResponse = await fetch(baseUrl + '/abc', {
-      method: 'POST',
-      headers: {
-        ...BROWSER_HEADERS,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Origin': baseUrl,
-        'Referer': baseUrl + '/',
-        'Cookie': cookies
+  const data = await response.json()
+  
+  if (data.code === 0 && data.data) {
+    const videoData = data.data
+    
+    // ✅ FORCE NO WATERMARK - Use wmplay if available, otherwise don't return
+    if (!videoData.wmplay) {
+      throw new Error('No watermark version not available')
+    }
+    
+    const noWatermarkUrl = ensureAbsoluteUrl(videoData.wmplay)
+    
+    return {
+      id: videoData.id || generateId(),
+      title: videoData.title || 'TikTok Video',
+      author: {
+        username: videoData.author?.unique_id || 'unknown',
+        nickname: videoData.author?.nickname || 'TikTok User',
+        avatar: videoData.author?.avatar ? ensureAbsoluteUrl(videoData.author.avatar) : '',
       },
-      body: formData.toString()
-    })
-
-    const resultHtml = await submitResponse.text()
-    
-    // Multiple extraction patterns for SSSTik
-    const patterns = [
-      /<a[^>]*href="(https?[^"]*\.mp4[^"]*)"[^>]*download/i,
-      /download without watermark[^>]*href="(https?[^"]*\.mp4[^"]*)"/i,
-      /"downloadLink":"([^"]*)"/i
-    ]
-    
-    let videoUrl = null
-    for (const pattern of patterns) {
-      const match = resultHtml.match(pattern)
-      if (match) {
-        videoUrl = match[1].replace(/\\\//g, '/')
-        console.log('🎯 SSSTik video URL:', videoUrl)
-        break
-      }
-    }
-
-    if (videoUrl) {
-      return {
-        id: generateId(),
-        title: 'TikTok Video',
-        author: {
-          username: 'tiktokuser',
-          nickname: 'TikTok Creator',
-          avatar: '',
-        },
-        video: {
-          url: videoUrl,
-          url_no_watermark: videoUrl,
-          cover: '',
-          duration: 0,
-        },
-        music: {
-          title: 'Original Sound',
-          author: 'Unknown Artist',
-        },
-        stats: {
-          likes: 0,
-          comments: 0,
-          shares: 0,
-          views: 0,
-        },
-      }
-    }
-    
-    throw new Error('SSSTik: No video found')
-    
-  } catch (error) {
-    console.error('❌ SSSTik error:', error)
-    throw error
-  }
-}
-
-// 🔥 SMART PROXY 3: TikMate (Alternative)
-async function smartTikMateProxy(tiktokUrl) {
-  console.log('🔍 Smart TikMate Proxy...')
-  
-  try {
-    // Use a different approach - direct API call
-    const apiUrl = `https://www.tikmate.app/api?url=${encodeURIComponent(tiktokUrl)}`
-    
-    const response = await fetch(apiUrl, {
-      headers: {
-        ...BROWSER_HEADERS,
-        'Accept': 'application/json',
-        'Referer': 'https://www.tikmate.app/'
-      }
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      
-      if (data.video_url) {
-        return {
-          id: generateId(),
-          title: data.title || 'TikTok Video',
-          author: {
-            username: data.author?.username || 'tiktokuser',
-            nickname: data.author?.nickname || 'TikTok Creator',
-            avatar: data.author?.avatar || '',
-          },
-          video: {
-            url: data.video_url,
-            url_no_watermark: data.video_url,
-            cover: data.cover || '',
-            duration: data.duration || 0,
-          },
-          music: {
-            title: data.music?.title || 'Original Sound',
-            author: data.music?.author || 'Unknown Artist',
-          },
-          stats: {
-            likes: data.stats?.likes || 0,
-            comments: data.stats?.comments || 0,
-            shares: data.stats?.shares || 0,
-            views: data.stats?.views || 0,
-          },
-        }
-      }
-    }
-    
-    throw new Error('TikMate API failed')
-    
-  } catch (error) {
-    console.error('❌ TikMate error:', error)
-    throw error
-  }
-}
-
-// 🔥 SMART PROXY 4: MusicalDown Alternative
-async function smartMusicalDownProxy(tiktokUrl) {
-  console.log('🔍 Smart MusicalDown Proxy...')
-  
-  const baseUrl = 'https://musicaldown.com'
-  
-  try {
-    const mainResponse = await fetch(baseUrl, {
-      headers: BROWSER_HEADERS
-    })
-    
-    const cookies = mainResponse.headers.get('set-cookie') || ''
-
-    const formData = new URLSearchParams()
-    formData.append('url', tiktokUrl)
-    formData.append('submit', '')
-
-    const submitResponse = await fetch(baseUrl + '/download', {
-      method: 'POST',
-      headers: {
-        ...BROWSER_HEADERS,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Origin': baseUrl,
-        'Referer': baseUrl + '/',
-        'Cookie': cookies
+      video: {
+        url: noWatermarkUrl, // Preview with no watermark
+        url_no_watermark: noWatermarkUrl, // Download with no watermark
+        cover: videoData.cover ? ensureAbsoluteUrl(videoData.cover) : '',
+        duration: videoData.duration || 0,
       },
-      body: formData.toString()
-    })
-
-    const resultHtml = await submitResponse.text()
-    
-    const videoMatch = resultHtml.match(/<a[^>]*href="(https?[^"]*\.mp4[^"]*)"[^>]*download/i)
-    const videoUrl = videoMatch ? videoMatch[1] : null
-
-    if (videoUrl) {
-      return {
-        id: generateId(),
-        title: 'TikTok Video',
-        author: {
-          username: 'tiktokuser',
-          nickname: 'TikTok Creator',
-          avatar: '',
-        },
-        video: {
-          url: videoUrl,
-          url_no_watermark: videoUrl,
-          cover: '',
-          duration: 0,
-        },
-        music: {
-          title: 'Original Sound',
-          author: 'Unknown Artist',
-        },
-        stats: {
-          likes: 0,
-          comments: 0,
-          shares: 0,
-          views: 0,
-        },
-      }
+      music: {
+        title: videoData.music_info?.title || 'Original Sound',
+        author: videoData.music_info?.author || 'Unknown Artist',
+      },
+      stats: {
+        likes: videoData.digg_count || 0,
+        comments: videoData.comment_count || 0,
+        shares: videoData.share_count || 0,
+        views: videoData.play_count || 0,
+      },
     }
-    
-    throw new Error('MusicalDown: No video found')
-    
-  } catch (error) {
-    console.error('❌ MusicalDown error:', error)
-    throw error
   }
+  
+  throw new Error(data.msg || 'TikWM API failed')
 }
 
-// 🔥 FINAL FALLBACK: Direct TikTok API Simulation
-async function directTikTokAPI(tiktokUrl) {
-  console.log('🔍 Direct TikTok API Simulation...')
+// ✅ API 3: ssstik.io no watermark
+async function trySSSTikNoWatermark(url) {
+  const apiUrl = `https://ssstik.io/abc?url=${encodeURIComponent(url)}`
   
-  try {
-    // Extract video ID from URL
-    const videoIdMatch = tiktokUrl.match(/\/(\d+)(?:\?|$)/)
-    const videoId = videoIdMatch ? videoIdMatch[1] : null
-    
-    if (!videoId) {
-      throw new Error('Could not extract video ID')
-    }
+  console.log('Trying SSSTik API...')
+  
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    },
+    timeout: 15000
+  })
 
-    // Use a public TikTok API endpoint
-    const apiUrl = `https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id=${videoId}`
-    
-    const response = await fetch(apiUrl, {
-      headers: {
-        'User-Agent': 'TikTok 26.2.0 rv:262018 (iPhone; iOS 14.4.2; en_US) Cronet',
-        'Accept': 'application/json',
-        'X-Khronos': Math.floor(Date.now() / 1000).toString(),
-        'X-Gorgon': '04048044000000000000000000000000'
-      }
-    })
+  if (!response.ok) throw new Error(`SSSTik API returned ${response.status}`)
 
-    if (response.ok) {
-      const data = await response.json()
-      
-      if (data.aweme_list && data.aweme_list[0]) {
-        const videoInfo = data.aweme_list[0]
-        const videoUrl = videoInfo.video?.play_addr?.url_list?.[0]
-        
-        if (videoUrl) {
-          return {
-            id: videoInfo.aweme_id || generateId(),
-            title: videoInfo.desc || 'TikTok Video',
-            author: {
-              username: videoInfo.author?.unique_id || 'tiktokuser',
-              nickname: videoInfo.author?.nickname || 'TikTok Creator',
-              avatar: videoInfo.author?.avatar_thumb?.url_list?.[0] || '',
-            },
-            video: {
-              url: videoUrl,
-              url_no_watermark: videoUrl,
-              cover: videoInfo.video?.cover?.url_list?.[0] || '',
-              duration: Math.floor(videoInfo.video?.duration / 1000) || 0,
-            },
-            music: {
-              title: videoInfo.music?.title || 'Original Sound',
-              author: videoInfo.music?.author || 'Unknown Artist',
-            },
-            stats: {
-              likes: videoInfo.statistics?.digg_count || 0,
-              comments: videoInfo.statistics?.comment_count || 0,
-              shares: videoInfo.statistics?.share_count || 0,
-              views: videoInfo.statistics?.play_count || 0,
-            },
-          }
-        }
+  const html = await response.text()
+  
+  // Extract no watermark video URL from HTML
+  const videoUrlMatch = html.match(/https:\/\/[^"]*\.mp4[^"]*/)
+  if (videoUrlMatch && !videoUrlMatch[0].includes('watermark')) {
+    return {
+      id: generateId(),
+      title: 'TikTok Video',
+      author: {
+        username: 'unknown',
+        nickname: 'TikTok User',
+        avatar: ''
+      },
+      video: {
+        url: videoUrlMatch[0],
+        url_no_watermark: videoUrlMatch[0],
+        cover: '',
+        duration: 0
+      },
+      music: {
+        title: 'Original Sound',
+        author: 'Unknown'
+      },
+      stats: {
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        views: 0
       }
     }
-    
-    throw new Error('Direct API failed')
-    
-  } catch (error) {
-    console.error('❌ Direct API error:', error)
-    throw error
   }
+  
+  throw new Error('No watermark video not found')
+}
+
+// ✅ Ensure URLs are absolute
+function ensureAbsoluteUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  if (url.startsWith('//')) return `https:${url}`
+  if (url.startsWith('/')) return `https://www.tikwm.com${url}`
+  return `https://www.tikwm.com/${url}`
 }
 
 // ✅ Generate unique ID
