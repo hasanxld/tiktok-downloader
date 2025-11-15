@@ -1,4 +1,3 @@
-// app/api/download/route.js
 import { NextResponse } from 'next/server'
 
 const rateLimitMap = new Map()
@@ -6,9 +5,8 @@ const rateLimitMap = new Map()
 export async function POST(request) {
   const clientIP = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
   const now = Date.now()
-  const windowStart = now - 60000 // 1 minute window
+  const windowStart = now - 60000
 
-  // Rate limiting
   const requests = rateLimitMap.get(clientIP) || []
   const recentRequests = requests.filter(time => time > windowStart)
   
@@ -36,7 +34,6 @@ export async function POST(request) {
       )
     }
 
-    // Validate TikTok URL
     const tiktokRegex = /https?:\/\/(www\.)?(tiktok\.com|vm\.tiktok\.com)\/[^\s]+/
     if (!tiktokRegex.test(url)) {
       return NextResponse.json(
@@ -45,7 +42,6 @@ export async function POST(request) {
       )
     }
 
-    // Using a free TikTok API service as fallback
     const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`
     
     const response = await fetch(apiUrl, {
