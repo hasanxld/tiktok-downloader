@@ -48,17 +48,17 @@ export async function POST(request) {
       )
     }
 
-    console.log('Processing TikTok URL with SSSTik:', url)
+    console.log('Processing TikTok URL:', url)
     
-    // ✅ Use SSSTik.io API - Best for no watermark
-    const videoData = await trySSSTikAPI(url)
+    // ✅ Use TikDown API - Very reliable for no watermark
+    const videoData = await tryTikDownAPI(url)
     
     if (!videoData || !videoData.video.url_no_watermark) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'NO_WATERMARK_UNAVAILABLE', 
-          message: 'Clean version not available for this video' 
+          error: 'DOWNLOAD_FAILED', 
+          message: 'Failed to download video. Please try another URL.' 
         },
         { status: 404 }
       )
@@ -83,116 +83,133 @@ export async function POST(request) {
   }
 }
 
-// ✅ SSSTik.io API - Best for no watermark videos
-async function trySSSTikAPI(url) {
-  const apiUrl = 'https://ssstik.io/abc'
+// ✅ TikDown API - Very reliable for no watermark
+async function tryTikDownAPI(url) {
+  const apiUrl = 'https://tikdown.org/api'
   
-  console.log('Calling SSSTik API...')
+  console.log('Calling TikDown API...')
   
-  // SSSTik requires POST with form data
   const formData = new URLSearchParams()
-  formData.append('id', url)
-  formData.append('locale', 'en')
-  formData.append('tt', 'your_tt_token_here') // This might need to be dynamic
+  formData.append('url', url)
 
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Origin': 'https://ssstik.io',
-      'Referer': 'https://ssstik.io/',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
+      'Accept': 'application/json',
+      'Origin': 'https://tikdown.org',
+      'Referer': 'https://tikdown.org/',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
       'Sec-Fetch-Site': 'same-origin'
     },
     body: formData.toString()
   })
 
   if (!response.ok) {
-    throw new Error(`SSSTik API returned ${response.status}`)
+    throw new Error(`TikDown API returned ${response.status}`)
   }
 
-  const html = await response.text()
+  const data = await response.json()
   
-  // Extract video information from HTML response
-  const videoData = extractVideoDataFromHTML(html)
-  
-  if (!videoData.videoUrl) {
-    throw new Error('No video URL found in response')
-  }
+  console.log('TikDown Response:', data)
 
-  return videoData
+  if (data.success && data.data) {
+    const videoInfo = data.data
+    return {
+      id: generateId(),
+      title: videoInfo.title || 'TikTok Video',
+      author: {
+        username: videoInfo.author?.unique_id || 'unknown',
+        nickname: videoInfo.author?.nickname || 'TikTok User',
+        avatar: videoInfo.author?.avatar || '',
+      },
+      video: {
+        url: videoInfo.play || '',
+        url_no_watermark: videoInfo.play || '', // TikDown provides no watermark
+        cover: videoInfo.cover || '',
+        duration: videoInfo.duration || 0,
+      },
+      music: {
+        title: videoInfo.music?.title || 'Original Sound',
+        author: videoInfo.music?.author || 'Unknown Artist',
+      },
+      stats: {
+        likes: videoInfo.like_count || 0,
+        comments: videoInfo.comment_count || 0,
+        shares: videoInfo.share_count || 0,
+        views: videoInfo.play_count || 0,
+      },
+    }
+  }
+  
+  throw new Error(data.message || 'TikDown API failed')
 }
 
-// ✅ Extract video data from SSSTik HTML response
-function extractVideoDataFromHTML(html) {
-  // Extract video URL (usually direct MP4 without watermark)
-  const videoUrlMatch = html.match(/<a[^>]*href="([^"]*\.mp4[^"]*)"[^>]*download/)
-  const videoUrl = videoUrlMatch ? videoUrlMatch[1] : null
-
-  // Extract title
-  const titleMatch = html.match(/<p[^>]*class="[^"]*maintext[^"]*"[^>]*>([^<]*)<\/p>/)
-  const title = titleMatch ? titleMatch[1].trim() : 'TikTok Video'
-
-  // Extract author
-  const authorMatch = html.match(/<p[^>]*class="[^"]*subtext[^"]*"[^>]*>([^<]*)<\/p>/)
-  const author = authorMatch ? authorMatch[1].trim() : 'TikTok User'
-
-  // Extract duration (if available)
-  const durationMatch = html.match(/(\d+)\s*seconds/)
-  const duration = durationMatch ? parseInt(durationMatch[1]) : 0
-
-  console.log('Extracted from SSSTik:', {
-    videoUrl,
-    title,
-    author,
-    duration
-  })
-
-  return {
-    id: generateId(),
-    title: title,
-    author: {
-      username: author.toLowerCase().replace(/\s+/g, ''),
-      nickname: author,
-      avatar: '',
-    },
-    video: {
-      url: videoUrl,
-      url_no_watermark: videoUrl, // SSSTik provides no watermark by default
-      cover: '',
-      duration: duration,
-    },
-    music: {
-      title: 'Original Sound',
-      author: 'Unknown Artist',
-    },
-    stats: {
-      likes: 0,
-      comments: 0,
-      shares: 0,
-      views: 0,
-    },
-  }
-}
-
-// ✅ Alternative method if SSSTik main API fails
-async function trySSSTikAlternative(url) {
-  // Alternative endpoint that might work better
-  const alternativeUrl = `https://ssstik.io/api?url=${encodeURIComponent(url)}`
+// ✅ Alternative: SnapTik API (Very reliable)
+async function trySnapTikAPI(url) {
+  const apiUrl = `https://snaptik.app/abc?url=${encodeURIComponent(url)}`
   
-  console.log('Trying SSSTik alternative endpoint...')
+  console.log('Trying SnapTik API...')
   
-  const response = await fetch(alternativeUrl, {
+  const response = await fetch(apiUrl, {
     method: 'GET',
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Accept': 'application/json',
-      'Referer': 'https://ssstik.io/'
+      'Referer': 'https://snaptik.app/'
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(`SnapTik API returned ${response.status}`)
+  }
+
+  const data = await response.json()
+  
+  if (data.data && data.data.video_url) {
+    return {
+      id: generateId(),
+      title: data.data.title || 'TikTok Video',
+      author: {
+        username: data.data.author?.username || 'unknown',
+        nickname: data.data.author?.nickname || 'TikTok User',
+        avatar: data.data.author?.avatar || '',
+      },
+      video: {
+        url: data.data.video_url,
+        url_no_watermark: data.data.video_url, // SnapTik provides no watermark
+        cover: data.data.cover || '',
+        duration: data.data.duration || 0,
+      },
+      music: {
+        title: data.data.music?.title || 'Original Sound',
+        author: data.data.music?.author || 'Unknown Artist',
+      },
+      stats: {
+        likes: data.data.stats?.likes || 0,
+        comments: data.data.stats?.comments || 0,
+        shares: data.data.stats?.shares || 0,
+        views: data.data.stats?.views || 0,
+      },
+    }
+  }
+  
+  throw new Error('SnapTik API failed')
+}
+
+// ✅ Alternative 2: TikTokDownloader API
+async function tryTikTokDownloaderAPI(url) {
+  const apiUrl = `https://www.tiktokdownloader.org/api?url=${encodeURIComponent(url)}`
+  
+  console.log('Trying TikTokDownloader API...')
+  
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json'
     }
   })
 
@@ -204,8 +221,8 @@ async function trySSSTikAlternative(url) {
         id: generateId(),
         title: data.title || 'TikTok Video',
         author: {
-          username: data.author?.username || 'unknown',
-          nickname: data.author?.nickname || 'TikTok User',
+          username: data.author?.id || 'unknown',
+          nickname: data.author?.name || 'TikTok User',
           avatar: data.author?.avatar || '',
         },
         video: {
@@ -216,7 +233,7 @@ async function trySSSTikAlternative(url) {
         },
         music: {
           title: data.music?.title || 'Original Sound',
-          author: data.music?.author || 'Unknown Artist',
+          author: data.music?.artist || 'Unknown Artist',
         },
         stats: {
           likes: data.stats?.likes || 0,
@@ -228,10 +245,10 @@ async function trySSSTikAlternative(url) {
     }
   }
   
-  throw new Error('Alternative endpoint failed')
+  throw new Error('TikTokDownloader API failed')
 }
 
 // ✅ Generate unique ID
 function generateId() {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9)
-    }
+        }
