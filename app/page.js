@@ -1,25 +1,6 @@
 // app/page.js
 'use client'
 import { useState, useEffect } from 'react'
-import { 
-  Download, 
-  Loader2, 
-  Video, 
-  User, 
-  Music, 
-  Calendar,
-  CheckCircle, 
-  XCircle, 
-  X,
-  Home as HomeIcon,
-  Download as DownloadIcon,
-  Star,
-  Settings,
-  BarChart3,
-  User as UserIcon,
-  Shield,
-  HelpCircle
-} from 'lucide-react'
 
 // Toast Component
 function Toast({ type = 'info', title, message, duration = 5000, onClose }) {
@@ -41,9 +22,9 @@ function Toast({ type = 'info', title, message, duration = 5000, onClose }) {
   }, [duration, onClose])
 
   const toastIcons = {
-    success: <CheckCircle className="w-5 h-5" />,
-    error: <XCircle className="w-5 h-5" />,
-    info: <CheckCircle className="w-5 h-5" />
+    success: <i className="ri-checkbox-circle-fill text-white text-xl"></i>,
+    error: <i className="ri-close-circle-fill text-white text-xl"></i>,
+    info: <i className="ri-information-fill text-white text-xl"></i>
   }
 
   const toastColors = {
@@ -66,7 +47,7 @@ function Toast({ type = 'info', title, message, duration = 5000, onClose }) {
           onClick={onClose}
           className="flex-shrink-0 opacity-70 hover:opacity-100 transition"
         >
-          <X className="w-4 h-4" />
+          <i className="ri-close-line text-white"></i>
         </button>
       </div>
       
@@ -85,14 +66,14 @@ function Sidebar() {
   const [activeItem, setActiveItem] = useState('DASHBOARD')
 
   const menuItems = [
-    { icon: <HomeIcon className="w-5 h-5" />, label: 'DASHBOARD' },
-    { icon: <DownloadIcon className="w-5 h-5" />, label: 'DOWNLOADS' },
-    { icon: <Star className="w-5 h-5" />, label: 'FAVORITES' },
-    { icon: <Settings className="w-5 h-5" />, label: 'SETTINGS' },
-    { icon: <BarChart3 className="w-5 h-5" />, label: 'ANALYTICS' },
-    { icon: <UserIcon className="w-5 h-5" />, label: 'PROFILE' },
-    { icon: <Shield className="w-5 h-5" />, label: 'PRIVACY' },
-    { icon: <HelpCircle className="w-5 h-5" />, label: 'SUPPORT' }
+    { icon: 'ri-home-7-fill', label: 'DASHBOARD' },
+    { icon: 'ri-download-cloud-2-fill', label: 'DOWNLOADS' },
+    { icon: 'ri-star-fill', label: 'FAVORITES' },
+    { icon: 'ri-settings-4-fill', label: 'SETTINGS' },
+    { icon: 'ri-bar-chart-2-fill', label: 'ANALYTICS' },
+    { icon: 'ri-user-3-fill', label: 'PROFILE' },
+    { icon: 'ri-shield-keyhole-fill', label: 'PRIVACY' },
+    { icon: 'ri-customer-service-2-fill', label: 'SUPPORT' }
   ]
 
   return (
@@ -114,7 +95,7 @@ function Sidebar() {
                 : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            {item.icon}
+            <i className={`${item.icon} text-lg`}></i>
             <span className="font-medium">{item.label}</span>
           </button>
         ))}
@@ -140,7 +121,7 @@ function Header() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="bg-gradient-to-r from-purple-500 to-blue-500 p-2">
-            <Video className="w-6 h-6 text-white" />
+            <i className="ri-video-line text-white text-2xl"></i>
           </div>
           <div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
@@ -203,10 +184,19 @@ function ToolSection({ addToast }) {
           duration: 3000
         })
       } else {
+        let errorMessage = data.message || 'FAILED TO DOWNLOAD VIDEO'
+        
+        // Specific error messages
+        if (data.error === 'INVALID_URL') {
+          errorMessage = 'INVALID TIKTOK URL. SUPPORTED FORMATS: TIKTOK.COM, VM.TIKTOK.COM, VT.TIKTOK.COM'
+        } else if (data.error === 'RATE_LIMIT_EXCEEDED') {
+          errorMessage = 'TOO MANY REQUESTS. PLEASE WAIT 1 MINUTE.'
+        }
+        
         addToast({
           type: 'error',
           title: 'DOWNLOAD FAILED',
-          message: data.message || 'FAILED TO DOWNLOAD VIDEO',
+          message: errorMessage,
           duration: 5000
         })
       }
@@ -255,7 +245,7 @@ function ToolSection({ addToast }) {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="PASTE TIKTOK VIDEO URL HERE..."
+            placeholder="PASTE TIKTOK VIDEO URL HERE... (tiktok.com, vm.tiktok.com, vt.tiktok.com)"
             className="flex-1 p-4 border border-gray-300 outline-none font-medium placeholder-gray-400"
             disabled={loading}
           />
@@ -266,12 +256,12 @@ function ToolSection({ addToast }) {
           >
             {loading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <i className="ri-loader-4-line animate-spin text-white text-xl"></i>
                 <span>PROCESSING...</span>
               </>
             ) : (
               <>
-                <Download className="w-5 h-5" />
+                <i className="ri-download-cloud-2-line text-white text-xl"></i>
                 <span>DOWNLOAD</span>
               </>
             )}
@@ -281,7 +271,7 @@ function ToolSection({ addToast }) {
         {loading && (
           <div className="text-center py-8">
             <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-blue-500 p-4 text-white">
-              <Loader2 className="w-6 h-6 animate-spin" />
+              <i className="ri-loader-4-line animate-spin text-white text-xl"></i>
               <span className="font-bold">FETCHING VIDEO DATA...</span>
             </div>
           </div>
@@ -293,7 +283,7 @@ function ToolSection({ addToast }) {
               {/* Video Preview */}
               <div>
                 <div className="flex items-center space-x-2 mb-4">
-                  <Video className="w-5 h-5 text-purple-600" />
+                  <i className="ri-video-line text-purple-600 text-xl"></i>
                   <h3 className="font-bold text-lg">VIDEO PREVIEW</h3>
                 </div>
                 <video
@@ -303,9 +293,10 @@ function ToolSection({ addToast }) {
                 />
                 <button
                   onClick={handleDirectDownload}
-                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 font-bold mt-4 border-0"
+                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 font-bold mt-4 border-0 flex items-center justify-center space-x-2"
                 >
-                  📥 DOWNLOAD VIDEO NOW
+                  <i className="ri-download-line text-white text-xl"></i>
+                  <span>DOWNLOAD VIDEO NOW</span>
                 </button>
               </div>
 
@@ -313,7 +304,7 @@ function ToolSection({ addToast }) {
               <div>
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2">
-                    <User className="w-5 h-5 text-purple-600" />
+                    <i className="ri-user-3-line text-purple-600 text-xl"></i>
                     <div>
                       <p className="font-bold">AUTHOR</p>
                       <p className="text-gray-700">{result.author.nickname}</p>
@@ -327,7 +318,7 @@ function ToolSection({ addToast }) {
 
                   {result.music?.title && (
                     <div className="flex items-center space-x-2">
-                      <Music className="w-5 h-5 text-purple-600" />
+                      <i className="ri-music-2-line text-purple-600 text-xl"></i>
                       <div>
                         <p className="font-bold">MUSIC</p>
                         <p className="text-gray-700">{result.music.title}</p>
@@ -336,7 +327,7 @@ function ToolSection({ addToast }) {
                   )}
 
                   <div className="flex items-center space-x-2">
-                    <Calendar className="w-5 h-5 text-purple-600" />
+                    <i className="ri-time-line text-purple-600 text-xl"></i>
                     <div>
                       <p className="font-bold">DURATION</p>
                       <p className="text-gray-700">{result.video.duration || 'N/A'} seconds</p>
@@ -347,11 +338,17 @@ function ToolSection({ addToast }) {
                   <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                     <div className="text-center">
                       <p className="font-bold text-2xl text-purple-600">{result.stats.likes?.toLocaleString() || '0'}</p>
-                      <p className="text-sm text-gray-600">LIKES</p>
+                      <p className="text-sm text-gray-600 flex items-center justify-center space-x-1">
+                        <i className="ri-heart-3-fill text-red-500"></i>
+                        <span>LIKES</span>
+                      </p>
                     </div>
                     <div className="text-center">
                       <p className="font-bold text-2xl text-blue-600">{result.stats.views?.toLocaleString() || '0'}</p>
-                      <p className="text-sm text-gray-600">VIEWS</p>
+                      <p className="text-sm text-gray-600 flex items-center justify-center space-x-1">
+                        <i className="ri-eye-fill text-blue-500"></i>
+                        <span>VIEWS</span>
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -368,22 +365,22 @@ function ToolSection({ addToast }) {
 function FeaturesSection() {
   const features = [
     {
-      icon: <Download className="w-8 h-8" />,
+      icon: 'ri-water-flash-fill',
       title: "NO WATERMARK",
       description: "DOWNLOAD TIKTOK VIDEOS WITHOUT ANY WATERMARK IN HIGH QUALITY"
     },
     {
-      icon: <Loader2 className="w-8 h-8" />,
+      icon: 'ri-zap-fill',
       title: "ULTRA FAST",
       description: "LIGHTNING FAST DOWNLOAD SPEEDS WITH PREMIUM SERVERS"
     },
     {
-      icon: <Shield className="w-8 h-8" />,
+      icon: 'ri-shield-check-fill',
       title: "SECURE & SAFE",
       description: "100% SECURE DOWNLOADS WITH NO DATA COLLECTION"
     },
     {
-      icon: <Video className="w-8 h-8" />,
+      icon: 'ri-smartphone-fill',
       title: "MOBILE FRIENDLY",
       description: "WORKS PERFECTLY ON ALL DEVICES AND SCREEN SIZES"
     }
@@ -402,7 +399,7 @@ function FeaturesSection() {
         {features.map((feature, index) => (
           <div key={index} className="border border-gray-200 p-6 text-center group hover:border-purple-500 transition-all">
             <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-16 h-16 flex items-center justify-center mx-auto mb-4 text-white group-hover:scale-110 transition-transform">
-              {feature.icon}
+              <i className={`${feature.icon} text-2xl`}></i>
             </div>
             <h3 className="font-bold text-lg mb-2">{feature.title}</h3>
             <p className="text-gray-600 text-sm">{feature.description}</p>
@@ -564,4 +561,4 @@ export default function TikTokDownloader() {
       </div>
     </div>
   )
-          }
+}
