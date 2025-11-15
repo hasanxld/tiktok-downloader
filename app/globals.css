@@ -3,7 +3,6 @@
 @tailwind utilities;
 
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-@import url('https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css');
 
 * {
   margin: 0;
@@ -13,7 +12,7 @@
 }
 
 body {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
 }
 
 /* Custom scrollbar */
@@ -32,3 +31,6 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
 }
+
+/* Ensure remixicons load properly */
+@import url('https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css');
