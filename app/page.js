@@ -21,23 +21,27 @@ function Toast({ type = 'info', title, message, duration = 5000, onClose }) {
     return () => clearInterval(interval)
   }, [duration, onClose])
 
-  const toastIcons = {
-    success: <i className="ri-checkbox-circle-fill text-white text-xl"></i>,
-    error: <i className="ri-close-circle-fill text-white text-xl"></i>,
-    info: <i className="ri-information-fill text-white text-xl"></i>
+  const getToastIcon = () => {
+    switch(type) {
+      case 'success': return <i className="ri-checkbox-circle-fill text-white text-xl"></i>
+      case 'error': return <i className="ri-close-circle-fill text-white text-xl"></i>
+      default: return <i className="ri-information-fill text-white text-xl"></i>
+    }
   }
 
-  const toastColors = {
-    success: 'bg-gradient-to-r from-green-500 to-blue-500 border-green-500',
-    error: 'bg-gradient-to-r from-red-500 to-pink-500 border-red-500',
-    info: 'bg-gradient-to-r from-purple-500 to-blue-500 border-purple-500'
+  const getToastColor = () => {
+    switch(type) {
+      case 'success': return 'bg-gradient-to-r from-green-500 to-blue-500 border-green-500'
+      case 'error': return 'bg-gradient-to-r from-red-500 to-pink-500 border-red-500'
+      default: return 'bg-gradient-to-r from-purple-500 to-blue-500 border-purple-500'
+    }
   }
 
   return (
-    <div className={`min-w-80 max-w-md text-white p-4 border-l-4 shadow-lg relative overflow-hidden ${toastColors[type]}`}>
+    <div className={`min-w-80 max-w-md text-white p-4 border-l-4 shadow-lg relative overflow-hidden ${getToastColor()}`}>
       <div className="flex items-start space-x-3">
         <div className="flex-shrink-0">
-          {toastIcons[type]}
+          {getToastIcon()}
         </div>
         <div className="flex-1">
           <h4 className="font-bold text-sm">{title}</h4>
@@ -47,7 +51,7 @@ function Toast({ type = 'info', title, message, duration = 5000, onClose }) {
           onClick={onClose}
           className="flex-shrink-0 opacity-70 hover:opacity-100 transition"
         >
-          <i className="ri-close-line text-white"></i>
+          <i className="ri-close-line text-white text-lg"></i>
         </button>
       </div>
       
@@ -196,13 +200,13 @@ function Header({ onMenuToggle }) {
           {/* Mobile Menu Button */}
           <button 
             onClick={onMenuToggle}
-            className="lg:hidden bg-gradient-to-r from-purple-500 to-blue-500 p-2 text-white"
+            className="lg:hidden bg-gradient-to-r from-purple-500 to-blue-500 w-10 h-10 flex items-center justify-center text-white"
           >
             <i className="ri-menu-line text-xl"></i>
           </button>
           
-          <div className="bg-gradient-to-r from-purple-500 to-blue-500 p-2 hidden lg:block">
-            <i className="ri-video-line text-white text-2xl"></i>
+          <div className="bg-gradient-to-r from-purple-500 to-blue-500 w-10 h-10 lg:w-12 lg:h-12 flex items-center justify-center text-white">
+            <i className="ri-video-line text-xl lg:text-2xl"></i>
           </div>
           
           <div>
@@ -223,6 +227,55 @@ function Header({ onMenuToggle }) {
         </nav>
       </div>
     </header>
+  )
+}
+
+// Video Player Component with Fallback
+function VideoPlayer({ src, title }) {
+  const [hasError, setHasError] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const handleError = () => {
+    console.log('Video loading error for:', src)
+    setHasError(true)
+    setIsLoading(false)
+  }
+
+  const handleLoad = () => {
+    setIsLoading(false)
+    setHasError(false)
+  }
+
+  if (hasError || !src) {
+    return (
+      <div className="w-full h-64 lg:h-80 bg-gray-100 border border-gray-200 flex flex-col items-center justify-center">
+        <i className="ri-error-warning-line text-4xl text-gray-400 mb-2"></i>
+        <p className="text-gray-600 text-sm text-center">Video preview not available</p>
+        <p className="text-gray-500 text-xs text-center mt-1">You can still download the video</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <i className="ri-loader-4-line animate-spin text-3xl text-purple-600"></i>
+        </div>
+      )}
+      <video
+        key={src} // Force re-render when src changes
+        src={src}
+        controls
+        className={`w-full border border-gray-200 max-h-64 lg:max-h-80 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+        onError={handleError}
+        onLoadedData={handleLoad}
+        onLoadStart={() => setIsLoading(true)}
+        preload="metadata"
+      >
+        Your browser does not support the video tag.
+      </video>
+    </div>
   )
 }
 
@@ -261,22 +314,24 @@ function ToolSection({ addToast }) {
         setResult(data.data)
         addToast({
           type: 'success',
-          title: 'DOWNLOAD READY',
-          message: 'VIDEO SUCCESSFULLY FETCHED',
+          title: 'SUCCESS',
+          message: 'VIDEO DATA FETCHED SUCCESSFULLY',
           duration: 3000
         })
       } else {
-        let errorMessage = data.message || 'FAILED TO DOWNLOAD VIDEO'
+        let errorMessage = 'FAILED TO DOWNLOAD VIDEO'
         
         if (data.error === 'INVALID_URL') {
-          errorMessage = 'INVALID TIKTOK URL. SUPPORTED FORMATS: TIKTOK.COM, VM.TIKTOK.COM, VT.TIKTOK.COM'
+          errorMessage = 'PLEASE PROVIDE A VALID TIKTOK URL'
         } else if (data.error === 'RATE_LIMIT_EXCEEDED') {
           errorMessage = 'TOO MANY REQUESTS. PLEASE WAIT 1 MINUTE.'
+        } else if (data.message) {
+          errorMessage = data.message
         }
         
         addToast({
           type: 'error',
-          title: 'DOWNLOAD FAILED',
+          title: 'ERROR',
           message: errorMessage,
           duration: 5000
         })
@@ -285,7 +340,7 @@ function ToolSection({ addToast }) {
       addToast({
         type: 'error',
         title: 'NETWORK ERROR',
-        message: 'PLEASE CHECK YOUR CONNECTION',
+        message: 'PLEASE CHECK YOUR INTERNET CONNECTION',
         duration: 5000
       })
     } finally {
@@ -295,11 +350,10 @@ function ToolSection({ addToast }) {
 
   const handleDirectDownload = () => {
     if (result?.video?.url_no_watermark) {
-      // Create proxy download link
-      const downloadUrl = `/api/proxy?url=${encodeURIComponent(result.video.url_no_watermark)}`
       const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = `tiktok-${result.id || Date.now()}.mp4`
+      link.href = result.video.url_no_watermark
+      link.download = `tiktok-video-${result.id || Date.now()}.mp4`
+      link.target = '_blank'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -307,14 +361,15 @@ function ToolSection({ addToast }) {
       addToast({
         type: 'success',
         title: 'DOWNLOAD STARTED',
-        message: 'VIDEO DOWNLOAD IN PROGRESS',
+        message: 'VIDEO DOWNLOAD INITIATED',
         duration: 3000
       })
     }
   }
 
   // Truncate long titles
-  const truncateTitle = (title, maxLength = 100) => {
+  const truncateTitle = (title, maxLength = 120) => {
+    if (!title) return 'No description available'
     if (title.length <= maxLength) return title
     return title.substring(0, maxLength) + '...'
   }
@@ -334,7 +389,7 @@ function ToolSection({ addToast }) {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="PASTE TIKTOK VIDEO URL HERE... (tiktok.com, vm.tiktok.com, vt.tiktok.com)"
+            placeholder="PASTE TIKTOK URL HERE (tiktok.com, vm.tiktok.com)..."
             className="flex-1 p-3 lg:p-4 border border-gray-300 outline-none font-medium placeholder-gray-400 text-sm lg:text-base"
             disabled={loading}
           />
@@ -346,7 +401,7 @@ function ToolSection({ addToast }) {
             {loading ? (
               <>
                 <i className="ri-loader-4-line animate-spin text-white text-lg lg:text-xl"></i>
-                <span className="text-sm lg:text-base">PROCESSING...</span>
+                <span className="text-sm lg:text-base">LOADING...</span>
               </>
             ) : (
               <>
@@ -376,46 +431,25 @@ function ToolSection({ addToast }) {
                   <h3 className="font-bold text-base lg:text-lg">VIDEO PREVIEW</h3>
                 </div>
                 
-                {result.video.url_no_watermark ? (
-                  <div className="relative">
-                    <video
-                      src={result.video.url_no_watermark}
-                      controls
-                      className="w-full border border-gray-200 max-h-[400px]"
-                      onError={(e) => {
-                        e.target.style.display = 'none'
-                        document.getElementById('video-error').style.display = 'block'
-                      }}
-                    />
-                    <div id="video-error" className="hidden bg-gray-100 border border-gray-200 w-full h-64 flex items-center justify-center">
-                      <div className="text-center">
-                        <i className="ri-error-warning-line text-4xl text-gray-400 mb-2"></i>
-                        <p className="text-gray-600">Video preview not available</p>
-                        <p className="text-sm text-gray-500">But you can still download the video</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-gray-100 border border-gray-200 w-full h-64 flex items-center justify-center">
-                    <div className="text-center">
-                      <i className="ri-error-warning-line text-4xl text-gray-400 mb-2"></i>
-                      <p className="text-gray-600">Video URL not available</p>
-                    </div>
-                  </div>
-                )}
+                <VideoPlayer 
+                  src={result.video.url_no_watermark || result.video.url} 
+                  title={result.title}
+                />
                 
                 <button
                   onClick={handleDirectDownload}
-                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 font-bold mt-4 border-0 flex items-center justify-center space-x-2 text-sm lg:text-base"
+                  disabled={!result.video.url_no_watermark && !result.video.url}
+                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 font-bold mt-4 border-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm lg:text-base"
                 >
                   <i className="ri-download-line text-white text-lg lg:text-xl"></i>
-                  <span>DOWNLOAD VIDEO NOW</span>
+                  <span>DOWNLOAD VIDEO</span>
                 </button>
               </div>
 
               {/* Video Details */}
               <div>
                 <div className="space-y-4">
+                  {/* Author */}
                   <div className="flex items-center space-x-2">
                     <i className="ri-user-3-line text-purple-600 text-lg lg:text-xl"></i>
                     <div>
@@ -424,25 +458,31 @@ function ToolSection({ addToast }) {
                     </div>
                   </div>
 
+                  {/* Description */}
                   <div>
                     <p className="font-bold text-sm lg:text-base mb-2">DESCRIPTION</p>
                     <div className="bg-gray-50 border border-gray-200 p-3 max-h-32 overflow-y-auto">
                       <p className="text-gray-700 text-sm lg:text-base break-words">
-                        {truncateTitle(result.title || 'No description available')}
+                        {truncateTitle(result.title)}
                       </p>
                     </div>
                   </div>
 
+                  {/* Music */}
                   {result.music?.title && (
                     <div className="flex items-center space-x-2">
                       <i className="ri-music-2-line text-purple-600 text-lg lg:text-xl"></i>
                       <div>
                         <p className="font-bold text-sm lg:text-base">MUSIC</p>
                         <p className="text-gray-700 text-sm lg:text-base">{result.music.title}</p>
+                        {result.music.author && result.music.author !== 'Unknown Artist' && (
+                          <p className="text-gray-500 text-xs">by {result.music.author}</p>
+                        )}
                       </div>
                     </div>
                   )}
 
+                  {/* Duration */}
                   <div className="flex items-center space-x-2">
                     <i className="ri-time-line text-purple-600 text-lg lg:text-xl"></i>
                     <div>
